@@ -1,41 +1,54 @@
-from docker_craft import create_dockerized_app, generate_docker_compose, generate_github_actions_yaml
-import json
+import pytest
+from unittest.mock import patch
+from docker_craft import validate_docker_install, clone_repo, start_containers, init_project, Project
 
-def test_create_dockerized_app():
-    app = create_dockerized_app("my_app", "my_image", 8080)
-    assert app.name == "my_app"
-    assert app.image == "my_image"
-    assert app.port == 8080
+def test_validate_docker_install():
+    with patch('subprocess.check_output') as mock_check_output:
+        mock_check_output.return_value = b'output'
+        assert validate_docker_install() == True
 
-def test_generate_docker_compose():
-    app = create_dockerized_app("my_app", "my_image", 8080)
-    docker_compose = generate_docker_compose(app)
-    assert "version: '3'" in docker_compose
-    assert "my_app:" in docker_compose
-    assert "image: my_image" in docker_compose
-    assert "ports:" in docker_compose
-    assert "- \"8080:80\"" in docker_compose
+def test_clone_repo():
+    with patch('subprocess.check_output') as mock_check_output:
+        mock_check_output.return_value = b'output'
+        assert clone_repo('test-project') == True
 
-def test_generate_github_actions_yaml():
-    app = create_dockerized_app("my_app", "my_image", 8080)
-    github_actions_yaml = generate_github_actions_yaml(app)
-    assert "name: Build and deploy my_app" in github_actions_yaml
-    assert "on:" in github_actions_yaml
-    assert "push:" in github_actions_yaml
-    assert "branches:" in github_actions_yaml
-    assert "- main" in github_actions_yaml
-    assert "jobs:" in github_actions_yaml
-    assert "build-and-deploy:" in github_actions_yaml
-    assert "runs-on: ubuntu-latest" in github_actions_yaml
-    assert "steps:" in github_actions_yaml
-    assert "name: Checkout code" in github_actions_yaml
-    assert "uses: actions/checkout@v2" in github_actions_yaml
-    assert "name: Login to Docker Hub" in github_actions_yaml
-    assert "uses: docker/login-action@v1" in github_actions_yaml
-    assert "name: Build and push Docker image" in github_actions_yaml
-    assert "run: |" in github_actions_yaml
-    assert "docker build -t my_image ." in github_actions_yaml
-    assert "docker push my_image" in github_actions_yaml
-    assert "name: Deploy to production" in github_actions_yaml
-    assert "run: |" in github_actions_yaml
-    assert "docker run -d -p 8080:80 my_image" in github_actions_yaml
+def test_start_containers():
+    with patch('subprocess.check_output') as mock_check_output:
+        mock_check_output.return_value = b'output'
+        assert start_containers('test-project') == True
+
+def test_init_project():
+    with patch('docker_craft.validate_docker_install') as mock_validate_docker_install:
+        mock_validate_docker_install.return_value = True
+        with patch('docker_craft.clone_repo') as mock_clone_repo:
+            mock_clone_repo.return_value = True
+            with patch('docker_craft.start_containers') as mock_start_containers:
+                mock_start_containers.return_value = True
+                project = init_project('test-project')
+                assert isinstance(project, Project)
+                assert project.id == 'test-project'
+                assert project.url == 'http://localhost:8080/test-project'
+
+def test_init_project_docker_not_running():
+    with patch('docker_craft.validate_docker_install') as mock_validate_docker_install:
+        mock_validate_docker_install.return_value = False
+        with pytest.raises(RuntimeError):
+            init_project('test-project')
+
+def test_init_project_clone_repo_failure():
+    with patch('docker_craft.validate_docker_install') as mock_validate_docker_install:
+        mock_validate_docker_install.return_value = True
+        with patch('docker_craft.clone_repo') as mock_clone_repo:
+            mock_clone_repo.return_value = False
+            with pytest.raises(RuntimeError):
+                init_project('non-existent-project')
+
+def test_init_project_start_containers_failure():
+    with patch('docker_craft.validate_docker_install') as mock_validate_docker_install:
+        mock_validate_docker_install.return_value = True
+        with patch('docker_craft.clone_repo') as mock_clone_repo:
+            mock_clone_repo.return_value = True
+            with patch('docker_craft.start_containers') as mock_start_containers:
+                mock_start_containers.return_value = False
+                with pytest.raises(RuntimeError):
+                    init_project('test-project')

@@ -1,63 +1,59 @@
+import argparse
 import json
+import subprocess
 from dataclasses import dataclass
-from argparse import ArgumentParser
+from urllib.parse import urlparse
 
 @dataclass
-class DockerizedApp:
-    name: str
-    image: str
-    port: int
+class Project:
+    id: str
+    url: str
 
-def create_dockerized_app(name: str, image: str, port: int) -> DockerizedApp:
-    return DockerizedApp(name, image, port)
+def validate_docker_install():
+    try:
+        subprocess.check_output(['docker', 'ps'])
+        return True
+    except FileNotFoundError:
+        return False
+    except subprocess.CalledProcessError:
+        return False
 
-def generate_docker_compose(app: DockerizedApp) -> str:
-    return f"""
-version: '3'
-services:
-  {app.name}:
-    image: {app.image}
-    ports:
-      - "{app.port}:80"
-"""
+def clone_repo(project_id):
+    try:
+        subprocess.check_output(['git', 'clone', f'https://github.com/{project_id}.git'])
+        return True
+    except subprocess.CalledProcessError:
+        return False
 
-def generate_github_actions_yaml(app: DockerizedApp) -> str:
-    return f"""
-name: Build and deploy {app.name}
-on:
-  push:
-    branches:
-      - main
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-      - name: Login to Docker Hub
-        uses: docker/login-action@v1
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-      - name: Build and push Docker image
-        run: |
-          docker build -t {app.image} .
-          docker push {app.image}
-      - name: Deploy to production
-        run: |
-          docker run -d -p {app.port}:80 {app.image}
-"""
+def start_containers(project_id):
+    try:
+        subprocess.check_output(['docker-compose', 'up', '-d'], cwd=project_id)
+        return True
+    except subprocess.CalledProcessError:
+        return False
+    except FileNotFoundError:
+        return False
+
+def init_project(project_id):
+    if not validate_docker_install():
+        raise RuntimeError('Docker is not running')
+    if not clone_repo(project_id):
+        raise RuntimeError('Failed to clone repository')
+    if not start_containers(project_id):
+        raise RuntimeError('Failed to start containers')
+    return Project(id=project_id, url=f'http://localhost:8080/{project_id}')
 
 def main():
-    parser = ArgumentParser()
-    parser.add_argument("--name", help="Name of the Dockerized app")
-    parser.add_argument("--image", help="Docker image name")
-    parser.add_argument("--port", type=int, help="Port number")
+    parser = argparse.ArgumentParser()
+    parser.add_argument('command', choices=['init'])
+    parser.add_argument('project_id')
     args = parser.parse_args()
+    if args.command == 'init':
+        try:
+            project = init_project(args.project_id)
+            print(f'Project initialized successfully. Access URL: {project.url}')
+        except RuntimeError as e:
+            print(f'Error: {e}')
 
-    app = create_dockerized_app(args.name, args.image, args.port)
-    print(generate_docker_compose(app))
-    print(generate_github_actions_yaml(app))
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
