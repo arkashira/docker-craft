@@ -1,59 +1,56 @@
-import argparse
 import json
-import subprocess
 from dataclasses import dataclass
-from urllib.parse import urlparse
+from datetime import datetime, timedelta
+from typing import List
 
 @dataclass
-class Project:
-    id: str
-    url: str
+class Lab:
+    title: str
+    difficulty: str
+    estimated_time: int
+    content: str
+    approved: bool = False
 
-def validate_docker_install():
-    try:
-        subprocess.check_output(['docker', 'ps'])
-        return True
-    except FileNotFoundError:
-        return False
-    except subprocess.CalledProcessError:
-        return False
+class DockerCraft:
+    def __init__(self):
+        self.pending_labs = []
+        self.approved_labs = []
 
-def clone_repo(project_id):
-    try:
-        subprocess.check_output(['git', 'clone', f'https://github.com/{project_id}.git'])
-        return True
-    except subprocess.CalledProcessError:
-        return False
+    def submit_lab(self, title: str, difficulty: str, estimated_time: int, content: str):
+        lab = Lab(title, difficulty, estimated_time, content)
+        self.pending_labs.append(lab)
 
-def start_containers(project_id):
-    try:
-        subprocess.check_output(['docker-compose', 'up', '-d'], cwd=project_id)
-        return True
-    except subprocess.CalledProcessError:
-        return False
-    except FileNotFoundError:
+    def approve_lab(self, title: str):
+        for lab in self.pending_labs:
+            if lab.title == title:
+                lab.approved = True
+                self.approved_labs.append(lab)
+                self.pending_labs.remove(lab)
+                return True
         return False
 
-def init_project(project_id):
-    if not validate_docker_install():
-        raise RuntimeError('Docker is not running')
-    if not clone_repo(project_id):
-        raise RuntimeError('Failed to clone repository')
-    if not start_containers(project_id):
-        raise RuntimeError('Failed to start containers')
-    return Project(id=project_id, url=f'http://localhost:8080/{project_id}')
+    def reject_lab(self, title: str):
+        for lab in self.pending_labs:
+            if lab.title == title:
+                self.pending_labs.remove(lab)
+                return True
+        return False
+
+    def get_approved_labs(self):
+        return [lab for lab in self.approved_labs if lab.approved]
+
+    def send_notification(self, title: str, approved: bool):
+        print(f"Notification sent for {title}: {'Approved' if approved else 'Rejected'}")
+
+    def review_labs(self):
+        for lab in self.pending_labs:
+            print(f"Reviewing lab: {lab.title}")
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('command', choices=['init'])
-    parser.add_argument('project_id')
-    args = parser.parse_args()
-    if args.command == 'init':
-        try:
-            project = init_project(args.project_id)
-            print(f'Project initialized successfully. Access URL: {project.url}')
-        except RuntimeError as e:
-            print(f'Error: {e}')
+    craft = DockerCraft()
+    craft.submit_lab("My Lab", "Easy", 30, "This is my lab")
+    craft.approve_lab("My Lab")
+    print(craft.get_approved_labs())
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

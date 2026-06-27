@@ -1,54 +1,41 @@
 import pytest
-from unittest.mock import patch
-from docker_craft import validate_docker_install, clone_repo, start_containers, init_project, Project
+from src.docker_craft import DockerCraft, Lab
 
-def test_validate_docker_install():
-    with patch('subprocess.check_output') as mock_check_output:
-        mock_check_output.return_value = b'output'
-        assert validate_docker_install() == True
+def test_submit_lab():
+    craft = DockerCraft()
+    craft.submit_lab("My Lab", "Easy", 30, "This is my lab")
+    assert len(craft.pending_labs) == 1
 
-def test_clone_repo():
-    with patch('subprocess.check_output') as mock_check_output:
-        mock_check_output.return_value = b'output'
-        assert clone_repo('test-project') == True
+def test_approve_lab():
+    craft = DockerCraft()
+    craft.submit_lab("My Lab", "Easy", 30, "This is my lab")
+    craft.approve_lab("My Lab")
+    assert len(craft.approved_labs) == 1
+    assert len(craft.pending_labs) == 0
 
-def test_start_containers():
-    with patch('subprocess.check_output') as mock_check_output:
-        mock_check_output.return_value = b'output'
-        assert start_containers('test-project') == True
+def test_reject_lab():
+    craft = DockerCraft()
+    craft.submit_lab("My Lab", "Easy", 30, "This is my lab")
+    craft.reject_lab("My Lab")
+    assert len(craft.pending_labs) == 0
 
-def test_init_project():
-    with patch('docker_craft.validate_docker_install') as mock_validate_docker_install:
-        mock_validate_docker_install.return_value = True
-        with patch('docker_craft.clone_repo') as mock_clone_repo:
-            mock_clone_repo.return_value = True
-            with patch('docker_craft.start_containers') as mock_start_containers:
-                mock_start_containers.return_value = True
-                project = init_project('test-project')
-                assert isinstance(project, Project)
-                assert project.id == 'test-project'
-                assert project.url == 'http://localhost:8080/test-project'
+def test_get_approved_labs():
+    craft = DockerCraft()
+    craft.submit_lab("My Lab", "Easy", 30, "This is my lab")
+    craft.approve_lab("My Lab")
+    approved_labs = craft.get_approved_labs()
+    assert len(approved_labs) == 1
+    assert approved_labs[0].title == "My Lab"
 
-def test_init_project_docker_not_running():
-    with patch('docker_craft.validate_docker_install') as mock_validate_docker_install:
-        mock_validate_docker_install.return_value = False
-        with pytest.raises(RuntimeError):
-            init_project('test-project')
+def test_send_notification():
+    craft = DockerCraft()
+    craft.submit_lab("My Lab", "Easy", 30, "This is my lab")
+    craft.approve_lab("My Lab")
+    craft.send_notification("My Lab", True)
+    # No assertion, just checking that it runs without error
 
-def test_init_project_clone_repo_failure():
-    with patch('docker_craft.validate_docker_install') as mock_validate_docker_install:
-        mock_validate_docker_install.return_value = True
-        with patch('docker_craft.clone_repo') as mock_clone_repo:
-            mock_clone_repo.return_value = False
-            with pytest.raises(RuntimeError):
-                init_project('non-existent-project')
-
-def test_init_project_start_containers_failure():
-    with patch('docker_craft.validate_docker_install') as mock_validate_docker_install:
-        mock_validate_docker_install.return_value = True
-        with patch('docker_craft.clone_repo') as mock_clone_repo:
-            mock_clone_repo.return_value = True
-            with patch('docker_craft.start_containers') as mock_start_containers:
-                mock_start_containers.return_value = False
-                with pytest.raises(RuntimeError):
-                    init_project('test-project')
+def test_review_labs():
+    craft = DockerCraft()
+    craft.submit_lab("My Lab", "Easy", 30, "This is my lab")
+    craft.review_labs()
+    # No assertion, just checking that it runs without error
